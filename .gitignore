@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.*
+
+# Build outputs
+dist/
+dist-ssr/
+*.local
+
+# Vite & cache directories
+.vite/
+.cache/
+coverage/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Automated browser & local workspace artifacts
+.playwright-cli/
+playwright-report/
+test-results/
+.aistudio/
+
+# Python lab scratch environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# OS & editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
