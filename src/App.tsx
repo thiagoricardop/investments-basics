@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   ArrowLeft,
@@ -41,6 +41,7 @@ import { ChapterMediaStrip } from './components/ChapterMediaStrip';
 import { ChapterQuiz } from './components/ChapterQuiz';
 import { StudyNotesDrawer } from './components/StudyNotesDrawer';
 import { SearchModal } from './components/SearchModal';
+import { BrandIcon } from './components/BrandIcon';
 
 type ActiveView = 'overview' | 'reader' | 'media' | 'practice' | 'plates';
 
@@ -268,11 +269,11 @@ export function App() {
 
     const onScroll = () => {
       const docHeight = document.documentElement.scrollHeight - window.innerHeight;
-      if (docHeight <= 0) {
-        setScrollProgress(0);
-      } else {
-        setScrollProgress(Math.min(100, Math.max(0, (window.scrollY / docHeight) * 100)));
-      }
+      const nextProgress =
+        docHeight <= 0
+          ? 0
+          : Math.round(Math.min(100, Math.max(0, (window.scrollY / docHeight) * 100)));
+      setScrollProgress((prev) => (prev === nextProgress ? prev : nextProgress));
 
       let currentId = visibleHeadings[0]?.id ?? '';
       for (const h of visibleHeadings) {
@@ -286,7 +287,7 @@ export function App() {
           }
         }
       }
-      setActiveHeadingId(currentId);
+      setActiveHeadingId((prev) => (prev === currentId ? prev : currentId));
     };
 
     onScroll();
@@ -294,7 +295,7 @@ export function App() {
     return () => window.removeEventListener('scroll', onScroll);
   }, [view, visibleHeadings]);
 
-  const handleToggleChecklist = (key: string) => {
+  const handleToggleChecklist = useCallback((key: string) => {
     setCheckedItems((prev) => {
       const next = { ...prev, [key]: !prev[key] };
       try {
@@ -304,7 +305,7 @@ export function App() {
       }
       return next;
     });
-  };
+  }, []);
 
   const handleToggleChapterComplete = (chapterId: string) => {
     setCompletedChapters((prev) => {
@@ -379,11 +380,21 @@ export function App() {
     return { done, total: items.length, kind: items[0]?.kind ?? 'Exercise' };
   };
 
-  const navigateToChapter = (chapterId: string, headingId?: string) => {
-    if (chapterId !== activeChapterId) {
-      setAnswerKeyOpen(false);
-    }
-    setActiveChapterId(chapterId);
+  const handleToggleAnswerKey = useCallback(() => {
+    setAnswerKeyOpen((open) => !open);
+  }, []);
+
+  const handleOpenLightbox = useCallback((src: string, alt: string) => {
+    setLightbox({ src, alt });
+  }, []);
+
+  const navigateToChapter = useCallback((chapterId: string, headingId?: string) => {
+    setActiveChapterId((prev) => {
+      if (chapterId !== prev) {
+        setAnswerKeyOpen(false);
+      }
+      return chapterId;
+    });
     setView('reader');
     setMobileTocOpen(false);
     if (headingId) {
@@ -396,13 +407,13 @@ export function App() {
     } else {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
-  };
+  }, []);
 
-  const openPlatesGallery = (chapterFilter?: string) => {
+  const openPlatesGallery = useCallback((chapterFilter?: string) => {
     setPlatesFilter(chapterFilter || 'all');
     setView('plates');
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+  }, []);
 
   const openPractice = (mode: PracticeMode = 'exercises', chapterFilter: string = 'all') => {
     setPracticeInitialMode(mode);
@@ -497,16 +508,17 @@ export function App() {
       {/* Strict 3-Zone Top Bar Contract */}
       <header className="sticky top-0 z-30 border-b border-stone-200 dark:border-slate-800 bg-[#FAF8F3]/95 dark:bg-[#0C1016]/95 backdrop-blur-sm">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-8 px-4 sm:px-8">
-          {/* Zone 1: Single-line Wordmark */}
+          {/* Zone 1: Brand Emblem + Single-line Wordmark */}
           <button
             type="button"
             onClick={() => {
               setView('overview');
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
-            className="font-display text-lg font-semibold tracking-tight text-stone-900 dark:text-white whitespace-nowrap shrink-0"
+            className="inline-flex items-center gap-2.5 font-display text-lg font-semibold tracking-tight text-stone-900 dark:text-white whitespace-nowrap shrink-0 group"
           >
-            Investments Basics
+            <BrandIcon className="h-7 w-7 shrink-0 shadow-xs transition-transform duration-150 group-hover:scale-[1.03]" />
+            <span>Investments Basics</span>
           </button>
 
           {/* Zone 2: 5 Concise Single-Line Nav Links */}
@@ -1265,10 +1277,10 @@ export function App() {
                   textSize={textSize}
                   checkedItems={checkedItems}
                   answerKeyOpen={answerKeyOpen}
-                  onToggleAnswerKey={() => setAnswerKeyOpen((open) => !open)}
+                  onToggleAnswerKey={handleToggleAnswerKey}
                   onToggleChecklist={handleToggleChecklist}
                   onNavigateChapter={navigateToChapter}
-                  onOpenLightbox={(src, alt) => setLightbox({ src, alt })}
+                  onOpenLightbox={handleOpenLightbox}
                   onOpenPlates={openPlatesGallery}
                 />
 
@@ -1484,8 +1496,11 @@ export function App() {
       {/* Quiet Editorial Footer */}
       <footer className={`border-t border-stone-200 dark:border-slate-800 py-8 mt-12 ${activePodcast ? 'pb-24' : ''}`}>
         <div className="mx-auto flex max-w-7xl flex-col sm:flex-row items-start sm:items-center justify-between gap-4 px-4 sm:px-8 text-xs text-stone-500 dark:text-slate-400">
-          <div>
-            Investments Basics · Trading &amp; Investing Study Guide (Chapters 01–05) · Educational Material Only
+          <div className="flex items-center gap-2">
+            <BrandIcon className="h-4 w-4 shrink-0" />
+            <span>
+              Investments Basics · Trading &amp; Investing Study Guide (Chapters 01–05) · Educational Material Only
+            </span>
           </div>
           <div className="flex flex-wrap items-center gap-4">
             <button type="button" onClick={() => setView('overview')} className="hover:underline">

@@ -344,3 +344,90 @@ export function extractChapterExercises(
   return exercises;
 }
 
+export interface SectionLineLookup {
+  headingIdByLine: Map<number, string>;
+  checkboxIndexByLine: Map<number, number>;
+}
+
+export interface ChapterLineMaps {
+  before: SectionLineLookup;
+  answerHeadingId: string;
+  answerBody: SectionLineLookup;
+  after: SectionLineLookup;
+}
+
+function scanSectionLines(
+  markdown: string,
+  seenHeadingIds: Map<string, number>,
+  checkboxCounter: { value: number }
+): SectionLineLookup {
+  const headingIdByLine = new Map<number, string>();
+  const checkboxIndexByLine = new Map<number, number>();
+  if (!markdown) return { headingIdByLine, checkboxIndexByLine };
+
+  const lines = markdown.split('\n');
+  let inCodeFence = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const lineNumber = i + 1;
+    if (line.trim().startsWith('```')) {
+      inCodeFence = !inCodeFence;
+      continue;
+    }
+    if (inCodeFence) continue;
+
+    const headingMatch = /^(#{2,3})\s+(.+?)\s*$/.exec(line);
+    if (headingMatch) {
+      const rawText = headingMatch[2]
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+        .replace(/[`*_]/g, '');
+      const baseId = slugifyHeading(rawText);
+      const count = seenHeadingIds.get(baseId) ?? 0;
+      seenHeadingIds.set(baseId, count + 1);
+      headingIdByLine.set(lineNumber, count === 0 ? baseId : `${baseId}-${count}`);
+      continue;
+    }
+
+    if (/^\s*[-*+]\s+\[[ xX]\]\s+/.test(line)) {
+      checkboxIndexByLine.set(lineNumber, checkboxCounter.value);
+      checkboxCounter.value += 1;
+    }
+  }
+
+  return { headingIdByLine, checkboxIndexByLine };
+}
+
+/**
+ * Deterministically maps line numbers across split chapter sections to exact heading IDs
+ * and sequential checklist indices so Markdown rendering has zero render-time mutation.
+ */
+export function buildChapterLineMaps(
+  beforeMarkdown: string,
+  answerKeyHeading: string | null,
+  answerBodyMarkdown: string,
+  afterMarkdown: string
+): ChapterLineMaps {
+  const seenHeadingIds = new Map<string, number>();
+  const checkboxCounter = { value: 0 };
+
+  const before = scanSectionLines(beforeMarkdown, seenHeadingIds, checkboxCounter);
+
+  let answerHeadingId = '';
+  if (answerKeyHeading) {
+    const clean = answerKeyHeading
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/[`*_]/g, '');
+    const baseId = slugifyHeading(clean);
+    const count = seenHeadingIds.get(baseId) ?? 0;
+    seenHeadingIds.set(baseId, count + 1);
+    answerHeadingId = count === 0 ? baseId : `${baseId}-${count}`;
+  }
+
+  const answerBody = scanSectionLines(answerBodyMarkdown, seenHeadingIds, checkboxCounter);
+  const after = scanSectionLines(afterMarkdown, seenHeadingIds, checkboxCounter);
+
+  return { before, answerHeadingId, answerBody, after };
+}
+
+

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
+  buildChapterLineMaps,
   extractChapterExercises,
   extractGlossaryTerms,
   extractHeadings,
@@ -90,4 +91,34 @@ test('extractChapterExercises extracts all 41 exercises and labs with matched an
     ['compounding', 'drawdown', 'expectancy', 'sizing']
   );
 });
+
+test('buildChapterLineMaps produces exact heading IDs and sequential checkbox indices across all 5 chapters', () => {
+  for (const ch of CHAPTER_FILES) {
+    const raw = fs.readFileSync(path.resolve(process.cwd(), ch.file), 'utf-8');
+    const split = splitAnswerKeySection(raw);
+    const maps = buildChapterLineMaps(
+      split.beforeAnswerKey,
+      split.answerKeyHeading,
+      split.answerKeyBody ?? '',
+      split.afterAnswerKey
+    );
+
+    const expectedHeadings = extractHeadings(raw).map((h) => h.id);
+    const mappedHeadings = [
+      ...maps.before.headingIdByLine.values(),
+      ...(maps.answerHeadingId ? [maps.answerHeadingId] : []),
+      ...maps.answerBody.headingIdByLine.values(),
+      ...maps.after.headingIdByLine.values(),
+    ];
+    assert.deepEqual(mappedHeadings, expectedHeadings, `Heading ID mismatch in ${ch.file}`);
+
+    const expectedChecks = (raw.match(/^- \[ \]/gm) ?? []).length;
+    const mappedChecks =
+      maps.before.checkboxIndexByLine.size +
+      maps.answerBody.checkboxIndexByLine.size +
+      maps.after.checkboxIndexByLine.size;
+    assert.equal(mappedChecks, expectedChecks, `Checkbox count mismatch in ${ch.file}`);
+  }
+});
+
 
